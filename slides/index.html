@@ -190,7 +190,7 @@
               - bottleneck on file descriptor usage
                 - a persistent queue use 1 fd stored on disk
 
-            # Note:
+            Note:
             mv that in each slide ?
 
           </textarea>
@@ -204,6 +204,7 @@
 
             Note:
             On va expliquer l'implementation du rpc avec rabbitmq dans openstack
+
             --
 
             #### Pub/Sub mechanism
@@ -249,8 +250,9 @@
               - cast fanout=True
 
             - Ex of a rpc call:
+
             '''shell
-            # here
+            here
             ```
 
           </textarea>
@@ -302,8 +304,10 @@
 
             - option already exist in oslo.messaging
 
+            ```shell
             [oslo.messaging]
             rabbit_quorum_queue = True
+            ```
 
             #### Oslo messaging: Move to quorum queues for transient
 
