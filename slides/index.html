@@ -42,6 +42,7 @@
             - In most cases, only solution was to reset cluster
               - events loss
               - inconsistencies on openstack
+            - When we loss 1 node, non HA queue are lost (transient queues)
 
             Note:
 
@@ -229,12 +230,21 @@
               topic.hostname
               topic_fanout
 
+            #### Subscriber: queue declaration on broker
+
+            by default:
+              - topic and topic.hostname are HA queues
+              - topic_fanout and reply are 'transient' => classic non HA queue
+
+            HA queues can be changed to Quorum queues.
+
             --
 
             #### Publisher
 
             - methods:
               - call
+                - reply queue (transient queue)
               - cast
               - cast fanout=True
 
@@ -246,21 +256,73 @@
           </textarea>
         </section>
 
+
+
+    <!-- Journey to get a stable infra. -->
+    <!-- -->
+    <!--     Infra improvment -->
+    <!--         split rabbit-neutron / rabbit-* -->
+    <!--         scale problematic clusters to 5 node -->
+    <!--         Upgrade to 3.10+ -->
+    <!--             quorum queue recommended -->
+    <!--         put back partition strategy to pause-minority -->
+    <!-- -->
+    <!--     oslo messaging improvments -->
+    <!--         queue fixed naming to avoid queue churn -->
+    <!--         heartbeat in pthread fix -->
+    <!--         move from HA queue > Quorum queues -->
+    <!--             fix to autodelete broken quorum queues -->
+    <!--         replace 'fanout' queues by stream queues -->
+    <!--             reduce queue nb a lot -->
+    <!--             patch to avoid tcp reconnection when a queue is deleted (kombu/oslo) -->
+    <!--         reduce queues declared by a RPC server (3 queues by default to only 1) -->
+    <!--         use same connection for mutiple topics -->
+
+
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
+            ### Journey to get a stable infra
+
+            --
+
+            #### Infrastructure: RabbitMQ upgrade
+
+            - from 3.8 to 3.12
+            - we noticed future removal of classic HA queues
+              - time to move on Quorum queues
+
+            Note:
+            - explain a bit quorum queues / raft mechanism ?
+
+            --
+
+            #### Oslo messaging: Move to quorum queues
+
+            - option already exist in oslo.messaging
+
+            [oslo.messaging]
+            rabbit_quorum_queue = True
+
+            #### Oslo messaging: Move to quorum queues for transient
+
+            Enable use of quorum queues for transient messages
+
+
+
+
 
           </textarea>
         </section>
 
-        <!-- <section data-markdown -->
-        <!--   data-separator="^\n---\n$" -->
-        <!--   data-separator-vertical="^\n--\n$"> -->
-        <!--   <textarea data-template> -->
-
-        <!--   </textarea> -->
-        <!-- </section> -->
+        <section data-markdown
+          data-separator="^\n---\n$"
+          data-separator-vertical="^\n--\n$">
+          <textarea data-template>
+            ### Conclusion
+          </textarea>
+        </section>
 
 
 
