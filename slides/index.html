@@ -1,40 +1,286 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+  <title>Follow the RabbitMQ</title>
 
-		<link rel="stylesheet" href="dist/reset.css">
-		<link rel="stylesheet" href="dist/reveal.css">
-		<link rel="stylesheet" href="dist/theme/black.css">
+    <link rel="stylesheet" href="dist/reset.css">
+    <link rel="stylesheet" href="dist/reveal.css">
+    <link rel="stylesheet" href="dist/theme/solarized.css">
 
-		<!-- Theme used for syntax highlighted code -->
-		<link rel="stylesheet" href="plugin/highlight/monokai.css">
-	</head>
-	<body>
-		<div class="reveal">
-			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
-			</div>
-		</div>
+    <!-- Theme used for syntax highlighted code -->
+    <link rel="stylesheet" href="plugin/highlight/monokai.css">
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
 
-		<script src="dist/reveal.js"></script>
-		<script src="plugin/notes/notes.js"></script>
-		<script src="plugin/markdown/markdown.js"></script>
-		<script src="plugin/highlight/highlight.js"></script>
-		<script>
-			// More info about initialization & config:
-			// - https://revealjs.com/initialization/
-			// - https://revealjs.com/config/
-			Reveal.initialize({
-				hash: true,
+        <section>image presentation</section>
 
-				// Learn about plugins: https://revealjs.com/plugins/
-				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
-			});
-		</script>
-	</body>
+        <!-- Intro -->
+        <section>
+          <section>Intro</section>
+          <section>Vertical Slide 1</section>
+        </section>
+
+        <section data-markdown
+          data-separator="^\n---\n$"
+          data-separator-vertical="^\n--\n$">
+          <textarea data-template>
+            ### Issues with rabbit ?
+
+            --
+
+            #### What kind of issue ?
+
+            - cluster unresponsive
+              - no more data from exporter
+              - stuck rabbitmqctl / api
+            - unrecoverable network partition
+            - In most cases, only solution was to reset cluster
+              - events loss
+              - inconsistencies on openstack
+
+            Note:
+
+            --
+
+            #### Who ? Biggest regions affected
+
+            - compute nodes: > 1000  (up to ~2000)
+            - separated rabbit clusters for Nova/Neutron
+            - RabbitMQ neutron cluster more affected than others
+
+            Note:
+            Who is mostly affected by those rabbit issues ?
+
+            --
+
+            #### Recurrent issues when deploying Neutron agent
+
+            - OVS neutron agent
+              - ovh particularity: 2 ovs agents per node (forked from upstream ovs)
+              - 1 agent = 14 tcp connections on rabbit
+              - 1 agent = at least N queues
+
+            - Rolling update redeclare tons of queues / tcp connections on message broker
+              - anormal cpu usage
+
+            Note:
+
+            120k queues on GRA7: thanos query screenshot to illustrate
+
+            --
+
+            #### Network partition
+
+            - Network interface flap have big impact on our deployment
+              - RabbitMQ cluster partitionned
+
+            - partition handling strategy set to pause-minority
+              - Node stop, locally connected agents reconnect on other nodes, then crash
+
+            Note:
+            Effet de bord du pause-minority
+            On a du repasser en partition handling = ignore
+
+            --
+
+            #### Root cause ?
+
+            - Wrong cluster sizing ?
+              - Nova cluster is ok, and it's usage in nb msg/s if by far > neutron
+              - But Neutron have more tcp connections / queues
+
+            - Wrong RabbitMQ configuration ?
+
+            - Openstack issue ?
+
+          </textarea>
+        </section>
+
+        <section data-markdown
+          data-separator="^\n---\n$"
+          data-separator-vertical="^\n--\n$">
+          <textarea data-template>
+            ### Troubleshoot: What's going on here
+
+            --
+
+            #### Need better observability
+
+            - Rabbitmq exporter / upstream grafana dashboards
+              - better view about events in cluster
+
+            - We need to understand what kind of openstack events may impact:
+              - oslo.metrics deployment
+
+            - smokeping between nodes + dashboard
+              - Monitor network partition
+
+            Note:
+            - split in multiple slides
+            - screenshot of tuned grafana dashboard  + oslo.metrics
+            - talk about patch we introduced in oslo.metrics
+
+            --
+
+            #### Need better tooling
+
+            - Use rabbitmq toolbox
+              - top like: rabbitmq-diagnostic observer
+              - events consumer:
+
+            ```json
+            ❭ rabbitmq-diagnostics consume_event_stream | jq
+            {
+              "event": "queue.created",
+              "user_who_performed_action": "nova",
+              "arguments": [
+                "{<<\"x-queue-type\">>,longstr,<<\"quorum\">>}",
+                "{<<\"x-expires\">>,signedint,60000}"
+              ],
+              "type": "rabbit_quorum_queue",
+              "exclusive": false,
+              "auto_delete": false,
+              "durable": true,
+              "name": "reply_5a9d34f1f6ee41f7b439dc0e2f0cb587",
+              "vhost": "/",
+              "timestamp_in_ms": 1687869995215
+            },
+            ```
+
+            Note:
+            - rabbitmq-diagnostic observer is useful to know which erlang function is consuming cpu
+            - a tons of events in a rabbit cluster is not normal
+
+            --
+
+            #### A way to reproduce production workload
+
+            - RabbitMQ perftest
+
+            ```bash
+             ❭ docker run -it --net=host --rm pivotalrabbitmq/perf-test:latest -H amqp://rabbit:xxx@10.69.212.68 \
+                  --size 5000 --json-body \
+                  --publishing-interval 5 \
+                  --consumers 1000 \
+                  --producers 3000 \
+                  -f persistent \
+                  -queue-pattern "ha_queue_%s" \
+                  --queue-pattern-from 1 \
+                  --queue-pattern-to 30000
+            ```
+
+            --
+
+            #### What we learned ?
+
+            - oslo.metrics: most of messages in neutron are fanout
+              - 1 message published, replicated to n queues
+
+            - perftest:
+              - rabbitmq does not like at all handling tons of internal events (connection, channel, queue create/delete, etc..)
+              - it's designed to handle high msg/s
+
+            - grafana:
+              - bottleneck on file descriptor usage
+                - a persistent queue use 1 fd stored on disk
+
+            # Note:
+            mv that in each slide ?
+
+          </textarea>
+        </section>
+
+        <section data-markdown
+          data-separator="^\n---\n$"
+          data-separator-vertical="^\n--\n$">
+          <textarea data-template>
+            ### Under the hood - oslo.messaging
+
+            Note:
+            On va expliquer l'implementation du rpc avec rabbitmq dans openstack
+            --
+
+            #### Pub/Sub mechanism
+
+            Note:
+            Schema:
+            publish to an exchange with a routing key
+            routed to 1 or N queue
+
+            1 queue => 1 consumer (except for stream, we'll see that later)
+
+            --
+
+            #### Subscriber: RPC server
+
+            - RPCServer() initialisation
+              - a topic name
+              - 1 or more endpoint class with rpc methods
+
+            Note:
+            1 rpcserver = 1 tcp connection
+            listening on 3 queues
+              topic
+              topic.hostname
+              topic_fanout
+
+            --
+
+            #### Publisher
+
+            - methods:
+              - call
+              - cast
+              - cast fanout=True
+
+            - Ex of a rpc call:
+            '''shell
+            # here
+            ```
+
+          </textarea>
+        </section>
+
+        <section data-markdown
+          data-separator="^\n---\n$"
+          data-separator-vertical="^\n--\n$">
+          <textarea data-template>
+
+          </textarea>
+        </section>
+
+        <!-- <section data-markdown -->
+        <!--   data-separator="^\n---\n$" -->
+        <!--   data-separator-vertical="^\n--\n$"> -->
+        <!--   <textarea data-template> -->
+
+        <!--   </textarea> -->
+        <!-- </section> -->
+
+
+
+      </div>
+    </div>
+
+    <script src="dist/reveal.js"></script>
+    <script src="plugin/notes/notes.js"></script>
+    <script src="plugin/markdown/markdown.js"></script>
+    <script src="plugin/highlight/highlight.js"></script>
+    <script>
+    // More info about initialization & config:
+    // - https://revealjs.com/initialization/
+    // - https://revealjs.com/config/
+    Reveal.initialize({
+      hash: true,
+
+      // Learn about plugins: https://revealjs.com/plugins/
+      plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+    });
+    </script>
+  </body>
 </html>
