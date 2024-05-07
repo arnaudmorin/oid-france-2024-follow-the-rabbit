@@ -17,32 +17,42 @@
     <div class="reveal">
       <div class="slides">
 
-        <section>image presentation</section>
+        <section>Follow the rabbit</section>
 
         <!-- Intro -->
         <section>
-          <section>Intro</section>
-          <section>Vertical Slide 1</section>
+          <section>Who are we ?</section>
         </section>
 
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ### Issues with rabbit ?
+            ### RabbitMQ issues?
 
             --
 
             #### What kind of issue ?
 
             - cluster unresponsive
-              - no more data from exporter
+              - no more data from prom exporter
               - stuck rabbitmqctl / api
+            - missed heartbeats
+              - oslo.messaging RPC timeouts
             - unrecoverable network partition
-            - In most cases, only solution was to reset cluster
-              - events loss
-              - inconsistencies on openstack
-            - When we loss 1 node, non HA queue are lost (transient queues)
+
+            --
+
+            #### Solutions
+
+            - Reset cluster
+
+            --
+
+            #### Bad effects
+
+            - events loss --> inconsistencies on openstack
+            - loss 1 node --> non HA queue are lost (transient queues)
 
             Note:
 
