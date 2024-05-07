@@ -191,6 +191,7 @@
 
             - oslo.metrics: most of messages in neutron are fanout
               - 1 message published, replicated to n queues
+              - neutron-server flood resources update to agents (agent notifier api, resource cache)
 
             - perftest:
               - rabbitmq does not like at all handling tons of internal events (connection, channel, queue create/delete, etc..)
@@ -319,23 +320,88 @@
             rabbit_quorum_queue = True
             ```
 
+            ```shell
+            ❭ rabbitmq-queues quorum_status q-plugin
+            Status of quorum queue q-plugin on node rabbit@rabbit-neutron2 ...
+            ┌────────────────────────┬────────────┬───────────┬──────────────┬────────────────┬──────┬─────────────────┐
+            │ Node Name              │ Raft State │ Log Index │ Commit Index │ Snapshot Index │ Term │ Machine Version │
+            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
+            │ rabbit@rabbit-neutron1 │ follower   │ 55448115  │ 55448115     │ 55445819       │ 1    │ 3               │
+            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
+            │ rabbit@rabbit-neutron2 │ follower   │ 55448115  │ 55448115     │ 55447813       │ 1    │ 3               │
+            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
+            │ rabbit@rabbit-neutron3 │ follower   │ 55448115  │ 55448115     │ 55443861       │ 1    │ 3               │
+            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
+            │ rabbit@rabbit-neutron4 │ leader     │ 55448115  │ 55448115     │ 55444051       │ 1    │ 3               │
+            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
+            │ rabbit@rabbit-neutron5 │ follower   │ 55448115  │ 55448115     │ 55443324       │ 1    │ 3               │
+            └────────────────────────┴────────────┴───────────┴──────────────┴────────────────┴──────┴─────────────────┘
+            ```
+
+            --
+
             #### Oslo messaging: Move to quorum queues for transient
 
             Enable use of quorum queues for transient messages
 
+            ```shell
+            [oslo.messaging]
+            rabbit_transient_quorum_queue = True
+            ```
+
+            - Pro:
+              - All queues are now HA, and loss of 1 node in the cluster
+                is not impactful
+            - Cons:
+              - Quorum queues are replicated, it will increase load on cluster.
+                It is important to not that at large scale, this feature must be
+                used with stream queues to avoid handling too many queues.
+
+            --
 
             #### Oslo messaging: Stream queues
 
             As RabbitMQ doc say:
 
             Use Cases for Using Streams: Large fan-outs
+            Goal here is to replace topic_fanout queues (1 pub to n consumers)
 
-            - same queue can be shared with multiple consumer
+            ```shell
+            [oslo.messaging]
+            rabbit_stream_fanout = True
+            ```
 
             Note:
             In rabbitmq, each consumer declare it's own queue.
+            with stream, same queue can be shared with N consumers.
+
+            --
+
+            #### Oslo messaging: Stream queues
+
+            Add a schema, with N consumer consuming at a specific offset
+
+            Add a screenshot of nb queues before/after
 
 
+            --
+
+            #### Oslo messaging: Some queues seems not used ?
+
+            Each RPC server declare 3 queues (like we explained before)
+
+
+
+
+            status: not submitted yet upstream
+
+            Note:
+
+            Neutron still has too many queues
+
+            --
+
+            #### Oslo messaging: Still too many connections
 
 
 
