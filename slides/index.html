@@ -61,11 +61,19 @@
 
             A lot of connection closed because of missed heartbeats
             - not something new
-              - seems accepted by the community
+            - seems accepted by the community
+
+            --
 
             ## oslo.messaging RPC timeout
 
             A lot of oslo.messaging RPC timeout in all openstack component logs
+
+            ```bash
+            MessagingTimeout: Timeout while waiting on RPC response...
+            ```
+
+            --
 
             ## Network partition
 
@@ -92,48 +100,7 @@
 
             Some regions have more than 2k computes nodes.
 
-
-## troubleshoot
-
-            - compute nodes: > 1000  (up to ~2000)
-            - separated rabbit clusters for Nova/Neutron
-            - RabbitMQ neutron cluster more affected than others
-
-            --
-
-            ## Neutron is the bad guy
-            Each compute is having at least 4 neutron agents
-            * neutron bgp agent
-            * neutron vrack agent
-            * neutron l3 agent
-            * neutron metadata agent
-            * neutron dhcp agent (eventually)
-
-            ## Neutron is the bad guy
-            Neutron create a lot of queues and connections!
-
-            - 1 agent = 14 tcp connections on rabbit
-            - 1 agent = at least N queues
-              - Most of them are *transient* queues
-
-            - Rolling update redeclare tons of queues / tcp connections on message broker
-              - anormal cpu usage
-
-            Note:
-
-            120k queues on GRA7: thanos query screenshot to illustrate
-
-            --
-
-            #### Root cause ?
-
-            - Wrong cluster sizing ?
-              - Nova cluster is ok, and it's usage in nb msg/s if by far > neutron
-              - But Neutron have more tcp connections / queues
-
-            - Wrong RabbitMQ configuration ?
-
-            - Openstack issue ?
+            ➜ We know that at large scale, it's not easy...
 
           </textarea>
         </section>
@@ -146,7 +113,7 @@
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ## Better observability
+            ## Improve our observability
 
             - Prometheus exporter + grafana dashboards
             - oslo.metrics
@@ -180,7 +147,7 @@
 
             --
 
-            ## Better tooling
+            ## Improve our tooling
 
             - rabbitmqctl
             - rabbitmq-queues
@@ -193,9 +160,9 @@
 
             --
 
-            ## Reproduce production workload on dev
+            ## Reproduce production workload
 
-            - RabbitMQ perftest
+            RabbitMQ perftest
 
             ```bash
              ❭ docker run -it --net=host --rm pivotalrabbitmq/perf-test:latest -H amqp://rabbit:xxx@10.69.212.68 \
@@ -213,15 +180,49 @@
 
             ## What we learned?
 
-            - oslo.metrics: most of messages in neutron are sent in fanouts
-              - 1 message published, replicated to n queues
+            Neutron is the bad guy
+
+            - From oslo.metrics: most of messages in neutron are sent in fanouts
+              - 1 message published ➜ replicated to N queues
               - neutron-server flood resources update to agents (agent notifier api, resource cache)
 
             --
 
             ## What we learned?
 
-            - perftest:
+            Neutron is the bad guy
+
+            * Each compute is having at least 4 neutron agents (bgp, vrack, l3, metadata, [dhcp])
+              * 1 agent = 14 tcp connections on rabbit
+              * 1 agent = at least N queues
+                * Most of them are *transient* queues
+
+            --
+
+            ## What we learned?
+            * Neutron create a lot of queues and connections!
+            * Rolling update redeclare tons of queues
+              * anormal CPU usage on rabbitmq servers
+
+            Note:
+
+            120k queues on GRA7: thanos query screenshot to illustrate
+
+            --
+
+            ## What we learned?
+
+            Nova is not as bad as neutron
+
+            * Only one agent (nova-compute)
+            * Less queues / TCP connections
+            * More messages (5x)
+
+            --
+
+            ## What we learned?
+
+            - From perftest:
               - rabbitmq does not like at all handling tons of internal events (connection, channel, queue create/delete, etc..)
               - it's designed to handle high msg/s
               - it's a message broker, not a queue/connection broker!
@@ -230,9 +231,10 @@
 
             ## What we learned?
 
-            - grafana:
+            - From grafana:
               - bottleneck on file descriptor usage
                 - a persistent queue use 1 fd stored on disk
+              - bottleneck on Erlang Atom (1M)
           </textarea>
         </section>
 
@@ -275,7 +277,9 @@
 
             Recommended HA policy:
 
-              `^(?!(amq\.)|(.*_fanout_)|(reply_)).*`
+            ```bash
+            `^(?!(amq\.)|(.*_fanout_)|(reply_)).*`
+            ```
 
             * No HA on *transient* queues:
               * reply\_[rand]
@@ -293,7 +297,7 @@
 
             - Ex of a rpc call:
 
-            '''shell
+            ```bash
             here
             ```
 
@@ -339,6 +343,8 @@
 
             Better, but not enough
 
+            ![](./images/dog-burning.gif)
+
             --
 
             ## Avoid missed heartbeats
@@ -360,6 +366,8 @@
 
             Better, but not enough
 
+            ![](./images/dog-burning.gif)
+
             --
 
             ## Avoid missed heartbeats on compute nodes
@@ -371,12 +379,15 @@
 
             Better, but not enough
 
+            ![](./images/dog-burning.gif)
+
             --
 
             ## Introducing RPC pinger
 
             A new endpoint to help operators monitoring agents liveness
 
+            --
 
             ## Configuring RPC pinger
 
@@ -385,7 +396,7 @@
             rpc_ping_enabled = True
             ```
 
-            + tool that actually send call RPC ping on all agents every 5 minutes
+            \+ a tool that actually send call RPC ping on all agents every 5 minutes (ovh-rpc-pinger)
 
             --
 
@@ -405,6 +416,8 @@
             --
 
             Better, but not enough
+
+            ![](./images/dog-burning.gif)
 
             --
             
@@ -446,6 +459,8 @@
 
             Better, but not enough
 
+            ![](./images/dog-burning.gif)
+
             --
 
             ## Bad results
@@ -467,6 +482,8 @@
 
             Better, but not enough
 
+            ![](./images/dog-burning.gif)
+
             --
 
             ## Avoid queue churn
@@ -485,15 +502,23 @@
             processname = yourprocessname
             ```
 
+            --
+
             ## Good results
 
-            reply\_[rand] ➜ reply_host1234:neutron-bgp-agent:1
+            reply\_4170059e-e2d2-4291-94ce-2c765437b3b0
+
+            to
+
+            reply_host1234:neutron-bgp-agent:1
 
             On service restart: **no queue churn**
 
             --
 
             Better, but not enough
+
+            ![](./images/dog-burning.gif)
 
             --
 
@@ -509,10 +534,28 @@
 
             ## Introducing stream queues
 
-            As RabbitMQ doc say:
+            As RabbitMQ doc says:
 
-            Use Cases for Using Streams: Large fan-outs
-            Goal here is to replace topic_fanout queues (1 pub to n consumers)
+            > Use cases for using streams:
+            >
+            > large fan-outs
+
+
+            --
+
+            From thousands
+
+            ```
+            xyz\_fanout\_[rand]
+            ```
+
+            to **only one**
+
+            ```
+            xyz_fanout
+            ```
+
+            Using:
 
             ```shell
             [oslo.messaging]
@@ -525,21 +568,19 @@
 
             --
 
-            ## Stream queue
+            ## Good results (GRA3)
 
-            Add a schema, with N consumer consuming at a specific offset
+            ![](./images/tostream.png)
 
-            Add a screenshot of nb queues before/after
 
-            --
-
-            ## Good results
-
+            Note:
             Reduce the number of queues, from 128k to 70k
 
             --
 
             Better, but not enough
+
+            ![](./images/dog-burning.gif)
 
             --
 
@@ -560,6 +601,13 @@
             Note:
 
             Neutron still has too many queues
+
+            --
+
+            ## Good results (GRA3)
+
+            ![](./images/tounused.png)
+
 
           </textarea>
         </section>
