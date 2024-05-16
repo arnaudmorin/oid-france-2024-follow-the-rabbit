@@ -24,57 +24,97 @@
           <section>Who are we ?</section>
         </section>
 
+        <section>
+          <section>What do we do?</section>
+        </section>
+
+        <!-- Agenda of issues -->
+        <section data-markdown>
+            ## Agenda
+
+            1. Who framed RabbitMQ?
+            1. Troubleshoot in Wonderland
+            1. Under the hood: oslo.messaging
+            1. Follow the *right* rabbit
+            1. Lessons learned from this journey
+        </section>
+
+
+        <!-- Issues -->
+        <section data-markdown data-background-image='images/roger.gif'>
+          # 1. Who framed RabbitMQ?
+        </section>
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ### RabbitMQ issues?
+            ## Cluster unresponsive
+            
+            RabbitMQ server and/or cluster is unresponsive
+            - stuck rabbitmqctl / api
+            - a lot of error in rabbitmq logs
+            - no more data from prom exporter
 
             --
 
-            #### What kind of issue ?
+            ## Missed heartbeats
 
-            - cluster unresponsive
-              - no more data from prom exporter
-              - stuck rabbitmqctl / api
-            - missed heartbeats
-              - oslo.messaging RPC timeouts
-            - unrecoverable network partition
+            A lot of connection closed because of missed heartbeats
+            - not something new
+              - seems accepted by the community
 
-            --
+            ## oslo.messaging RPC timeout
 
-            #### Solutions
+            A lot of oslo.messaging RPC timeout in all openstack component logs
 
-            - Reset cluster
+            ## Network partition
 
-            --
-
-            #### Bad effects
-
-            - events loss --> inconsistencies on openstack
-            - loss 1 node --> non HA queue are lost (transient queues)
-
-            Note:
+            RabbitMQ cluster partition without any visible reason
 
             --
 
-            #### Who ? Biggest regions affected
+            ## Our (dirty) solution
+
+            Reset cluster
+
+            --
+
+            ## Bad effects
+
+            - events loss ➜ inconsistencies on openstack
+            - loss 1 node ➜ non HA queue are lost (*transient* queues)
+
+            --
+
+            ## You said large-scale?
+
+            Most of our region are bigger than 1k computes nodes
+
+            Some regions have more than 2k computes nodes.
+
+
+## troubleshoot
 
             - compute nodes: > 1000  (up to ~2000)
             - separated rabbit clusters for Nova/Neutron
             - RabbitMQ neutron cluster more affected than others
 
-            Note:
-            Who is mostly affected by those rabbit issues ?
-
             --
 
-            #### Recurrent issues when deploying Neutron agent
+            ## Neutron is the bad guy
+            Each compute is having at least 4 neutron agents
+            * neutron bgp agent
+            * neutron vrack agent
+            * neutron l3 agent
+            * neutron metadata agent
+            * neutron dhcp agent (eventually)
 
-            - OVS neutron agent
-              - ovh particularity: 2 ovs agents per node (forked from upstream ovs)
-              - 1 agent = 14 tcp connections on rabbit
-              - 1 agent = at least N queues
+            ## Neutron is the bad guy
+            Neutron create a lot of queues and connections!
+
+            - 1 agent = 14 tcp connections on rabbit
+            - 1 agent = at least N queues
+              - Most of them are *transient* queues
 
             - Rolling update redeclare tons of queues / tcp connections on message broker
               - anormal cpu usage
@@ -82,20 +122,6 @@
             Note:
 
             120k queues on GRA7: thanos query screenshot to illustrate
-
-            --
-
-            #### Network partition
-
-            - Network interface flap have big impact on our deployment
-              - RabbitMQ cluster partitionned
-
-            - partition handling strategy set to pause-minority
-              - Node stop, locally connected agents reconnect on other nodes, then crash
-
-            Note:
-            Effet de bord du pause-minority
-            On a du repasser en partition handling = ignore
 
             --
 
@@ -112,56 +138,54 @@
           </textarea>
         </section>
 
+        <!-- Troubleshoot -->
+        <section data-markdown data-background-image='images/alice.gif'>
+          # 2. Troubleshoot
+        </section>
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ### Troubleshoot: What's going on here
+            ## Better observability
 
-            --
-
-            #### Need better observability
-
-            - Rabbitmq exporter / upstream grafana dashboards
-              - better view about events in cluster
-
-            - We need to understand what kind of openstack events may impact:
-              - oslo.metrics deployment
-
-            - smokeping between nodes + dashboard
-              - Monitor network partition
+            - Prometheus exporter + grafana dashboards
+            - oslo.metrics
+            - smokeping between cluster nodes
 
             Note:
-            - split in multiple slides
             - screenshot of tuned grafana dashboard  + oslo.metrics
             - talk about patch we introduced in oslo.metrics
 
             --
 
-            #### Need better tooling
+            ## Take a look at logs
 
-            - Use rabbitmq toolbox
-              - top like: rabbitmq-diagnostic observer
-              - events consumer:
+            *that sounds obvious*
 
-            ```json
-            ❭ rabbitmq-diagnostics consume_event_stream | jq
-            {
-              "event": "queue.created",
-              "user_who_performed_action": "nova",
-              "arguments": [
-                "{<<\"x-queue-type\">>,longstr,<<\"quorum\">>}",
-                "{<<\"x-expires\">>,signedint,60000}"
-              ],
-              "type": "rabbit_quorum_queue",
-              "exclusive": false,
-              "auto_delete": false,
-              "durable": true,
-              "name": "reply_5a9d34f1f6ee41f7b439dc0e2f0cb587",
-              "vhost": "/",
-              "timestamp_in_ms": 1687869995215
-            },
-            ```
+            --
+
+            ## Add some useful logs
+
+            Add some logs with:
+            - message ID
+            - consumer ID
+            - RPC called
+            - etc.
+
+            --
+
+            ## Talk with upstream community
+
+            *that sounds also obvious*
+
+            --
+
+            ## Better tooling
+
+            - rabbitmqctl
+            - rabbitmq-queues
+            - rabbitmq-diagnostics
+            - etc.
 
             Note:
             - rabbitmq-diagnostic observer is useful to know which erlang function is consuming cpu
@@ -169,7 +193,7 @@
 
             --
 
-            #### A way to reproduce production workload
+            ## Reproduce production workload on dev
 
             - RabbitMQ perftest
 
@@ -187,38 +211,41 @@
 
             --
 
-            #### What we learned ?
+            ## What we learned?
 
-            - oslo.metrics: most of messages in neutron are fanout
+            - oslo.metrics: most of messages in neutron are sent in fanouts
               - 1 message published, replicated to n queues
               - neutron-server flood resources update to agents (agent notifier api, resource cache)
+
+            --
+
+            ## What we learned?
 
             - perftest:
               - rabbitmq does not like at all handling tons of internal events (connection, channel, queue create/delete, etc..)
               - it's designed to handle high msg/s
+              - it's a message broker, not a queue/connection broker!
+
+            --
+
+            ## What we learned?
 
             - grafana:
               - bottleneck on file descriptor usage
                 - a persistent queue use 1 fd stored on disk
-
-            Note:
-            mv that in each slide ?
-
           </textarea>
         </section>
 
+
+        <!-- Under the hood -->
+        <section data-markdown data-background-image='images/matrix.gif'>
+          # 3. Under the hood: oslo.messaging
+        </section>
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ### Under the hood - oslo.messaging
-
-            Note:
-            On va expliquer l'implementation du rpc avec rabbitmq dans openstack
-
-            --
-
-            #### Pub/Sub mechanism
+            ## Pub/Sub mechanism
 
             Note:
             Schema:
@@ -229,7 +256,7 @@
 
             --
 
-            #### Subscriber: RPC server
+            ## RPC server
 
             - RPCServer() initialisation
               - a topic name
@@ -242,17 +269,21 @@
               topic.hostname
               topic_fanout
 
-            #### Subscriber: queue declaration on broker
+            --
 
-            by default:
-              - topic and topic.hostname are HA queues
-              - topic_fanout and reply are 'transient' => classic non HA queue
+            ## Policy and queues
 
-            HA queues can be changed to Quorum queues.
+            Recommended HA policy:
+
+              `^(?!(amq\.)|(.*_fanout_)|(reply_)).*`
+
+            * No HA on *transient* queues:
+              * reply\_[rand]
+              * \*\_fanout\_[rand]
 
             --
 
-            #### Publisher
+            ## Publisher
 
             - methods:
               - call
@@ -292,74 +323,191 @@
     <!--         use same connection for mutiple topics -->
 
 
+        <!-- Solutions -->
+        <section data-markdown data-background-image='images/matrixlapin.jpeg'>
+          # 4. Follow the *right* rabbit
+        </section>
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ### Journey to get a stable infra
+            ## RabbitMQ upgrade
+
+            3.8 ➜ 3.12
 
             --
 
-            #### Infrastructure: RabbitMQ upgrade
-
-            - from 3.8 to 3.12
-            - we noticed future removal of classic HA queues
-              - time to move on Quorum queues
-
-            Note:
-            - explain a bit quorum queues / raft mechanism ?
+            Better, but not enough
 
             --
 
-            #### Oslo messaging: Move to quorum queues
+            ## Avoid missed heartbeats
 
-            - option already exist in oslo.messaging
+            A lot of connections are closed because of missed heartbeats
+
+            * not something new
+            * seems accepted by the community
+
+            Let's fix it anyway
+
+            --
+
+            ## Switch apache mpm
+
+            worker ➜ event
+
+            --
+
+            Better, but not enough
+
+            --
+
+            ## Avoid missed heartbeats on compute nodes
+
+            * fixed green threads (some fix were already done by RedHat)
+            * fixed pyamqp (timeout not respected)
+
+            --
+
+            Better, but not enough
+
+            --
+
+            ## Introducing RPC pinger
+
+            A new endpoint to help operators monitoring agents liveness
+
+
+            ## Configuring RPC pinger
+
+            ```shell
+            [oslo.messaging]
+            rpc_ping_enabled = True
+            ```
+
+            + tool that actually send call RPC ping on all agents every 5 minutes
+
+            --
+
+            ## Good results
+
+            Very precise monitoring of which neutron / nova agent is dead or not
+
+            --
+
+            ## Bad results
+
+            Too much messages sent over RabbitMQ wires (x10)
+
+            Not as reliable as expected:
+            * each RPC server run in a separate thread
+
+            --
+
+            Better, but not enough
+
+            --
+            
+            ## Support a node loss
+
+            * Recommended policy is not HA for all queues
+              * node loss ➜ queues loss ➜ messages loss
+            * Classic HA are deprecated
+
+            --
+
+            ## Introducing quorum queues
+
+            * Quorum are replacing classic HA
+            * RabbitMQ community recommands quorum
+
+            * oslo.messaging partial support
+              * missing support for *transient* queues
+
+            --
+
+            ## Configuring quorum queues
 
             ```shell
             [oslo.messaging]
             rabbit_quorum_queue = True
-            ```
-
-            ```shell
-            ❭ rabbitmq-queues quorum_status q-plugin
-            Status of quorum queue q-plugin on node rabbit@rabbit-neutron2 ...
-            ┌────────────────────────┬────────────┬───────────┬──────────────┬────────────────┬──────┬─────────────────┐
-            │ Node Name              │ Raft State │ Log Index │ Commit Index │ Snapshot Index │ Term │ Machine Version │
-            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
-            │ rabbit@rabbit-neutron1 │ follower   │ 55448115  │ 55448115     │ 55445819       │ 1    │ 3               │
-            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
-            │ rabbit@rabbit-neutron2 │ follower   │ 55448115  │ 55448115     │ 55447813       │ 1    │ 3               │
-            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
-            │ rabbit@rabbit-neutron3 │ follower   │ 55448115  │ 55448115     │ 55443861       │ 1    │ 3               │
-            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
-            │ rabbit@rabbit-neutron4 │ leader     │ 55448115  │ 55448115     │ 55444051       │ 1    │ 3               │
-            ├────────────────────────┼────────────┼───────────┼──────────────┼────────────────┼──────┼─────────────────┤
-            │ rabbit@rabbit-neutron5 │ follower   │ 55448115  │ 55448115     │ 55443324       │ 1    │ 3               │
-            └────────────────────────┴────────────┴───────────┴──────────────┴────────────────┴──────┴─────────────────┘
-            ```
-
-            --
-
-            #### Oslo messaging: Move to quorum queues for transient
-
-            Enable use of quorum queues for transient messages
-
-            ```shell
-            [oslo.messaging]
             rabbit_transient_quorum_queue = True
             ```
 
-            - Pro:
-              - All queues are now HA, and loss of 1 node in the cluster
-                is not impactful
-            - Cons:
-              - Quorum queues are replicated, it will increase load on cluster.
-                It is important to not that at large scale, this feature must be
-                used with stream queues to avoid handling too many queues.
+            --
+
+            ## Good results
+
+            All queues are now HA
+
+            We support a node loss!
 
             --
 
-            #### Oslo messaging: Stream queues
+            Better, but not enough
+
+            --
+
+            ## Bad results
+
+            * more CPU
+            * more network
+            * more RAM
+
+            --
+
+            ## Very bad results
+
+            Queue churn is killing servers/cluster
+
+            * Rabbit unresponsive / slow
+            * Cluster partition
+
+            --
+
+            Better, but not enough
+
+            --
+
+            ## Avoid queue churn
+
+            Queue churn is due to randomness in *transient* queues
+            * reply\_[rand]
+            * \*\_fanout\_[rand]
+
+            --
+
+            ## Introducing queue manager
+            ```shell
+            [oslo.messaging]
+            use_queue_manager = True
+            hostname = yourhostname
+            processname = yourprocessname
+            ```
+
+            ## Good results
+
+            reply\_[rand] ➜ reply_host1234:neutron-bgp-agent:1
+
+            On service restart: **no queue churn**
+
+            --
+
+            Better, but not enough
+
+            --
+
+            ## Too much queue issue
+
+            Too much queues on RabbitMQ
+
+            **Side effect**:
+            * Queue leader re-election is costly
+              * Can kill the cluster
+
+            --
+
+            ## Introducing stream queues
 
             As RabbitMQ doc say:
 
@@ -377,21 +525,35 @@
 
             --
 
-            #### Oslo messaging: Stream queues
+            ## Stream queue
 
             Add a schema, with N consumer consuming at a specific offset
 
             Add a screenshot of nb queues before/after
 
+            --
+
+            ## Good results
+
+            Reduce the number of queues, from 128k to 70k
 
             --
 
-            #### Oslo messaging: Some queues seems not used ?
+            Better, but not enough
+
+            --
+
+            ## Stop creating unused queues
+
+            Neutron creates a lot of queues, while it seems they are not used!
+
+            Can we delete them / stop creating them?
+
+            --
+
+            ## Cleanup up neutron / oslo.messaging code
 
             Each RPC server declare 3 queues (like we explained before)
-
-
-
 
             status: not submitted yet upstream
 
@@ -399,23 +561,16 @@
 
             Neutron still has too many queues
 
-            --
-
-            #### Oslo messaging: Still too many connections
-
-
-
-
-
-
           </textarea>
         </section>
 
+        <!-- What we learned from that journey -->
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ### Conclusion
+            ### Lessons learned
+            TODO
           </textarea>
         </section>
 
