@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-  <title>Follow the RabbitMQ</title>
+    <title>Follow the RabbitMQ</title>
 
     <link rel="stylesheet" href="dist/reset.css">
     <link rel="stylesheet" href="dist/reveal.css">
-    <link rel="stylesheet" href="dist/theme/solarized.css">
+    <link rel="stylesheet" href="dist/theme/black.css">
 
     <!-- Theme used for syntax highlighted code -->
     <link rel="stylesheet" href="plugin/highlight/monokai.css">
@@ -17,15 +17,25 @@
     <div class="reveal">
       <div class="slides">
 
-        <section>Follow the rabbit</section>
-
-        <!-- Intro -->
-        <section>
-          <section>Who are we ?</section>
+        <section data-markdown data-background-color='#000e9f'>
+            # Follow the rabbit
+            ![OVH](images/ovhcloud2.png)
+            #### Julien Cosmao - Arnaud Morin
+            #### OpenInfra Day France - 2024
         </section>
 
-        <section>
-          <section>What do we do?</section>
+        <!-- Intro -->
+        <section data-markdown>
+            ## Who are we ?
+            Julien
+
+            Arnaud
+        </section>
+
+        <section data-markdown data-background="images/nerds2.gif">
+            ## What do we do?
+
+            ![OpenStack](images/openstack_logo.png)
         </section>
 
         <!-- Agenda of issues -->
@@ -234,13 +244,12 @@
             - From grafana:
               - bottleneck on file descriptor usage
                 - a persistent queue use 1 fd stored on disk
-              - bottleneck on Erlang Atom (1M)
           </textarea>
         </section>
 
 
         <!-- Under the hood -->
-        <section data-markdown data-background-image='images/matrix.gif'>
+        <section data-markdown data-background-image='images/tomber.gif'>
           # 3. Under the hood: oslo.messaging
         </section>
         <section data-markdown
@@ -477,12 +486,7 @@
 
             * Rabbit unresponsive / slow
             * Cluster partition
-
-            --
-
-            Better, but not enough
-
-            ![](./images/dog-burning.gif)
+            * Exhaustion on Erlang Atom (1M)
 
             --
 
@@ -506,11 +510,15 @@
 
             ## Good results
 
-            reply\_4170059e-e2d2-4291-94ce-2c765437b3b0
+            ```bash
+            reply_4170059e-e2d2-4291-94ce-2c765437b3b0
+            ```
 
             to
 
+            ```bash
             reply_host1234:neutron-bgp-agent:1
+            ```
 
             On service restart: **no queue churn**
 
@@ -594,6 +602,7 @@
 
             ## Cleanup up neutron / oslo.messaging code
 
+            TODO
             Each RPC server declare 3 queues (like we explained before)
 
             status: not submitted yet upstream
@@ -608,11 +617,19 @@
 
             ![](./images/tounused.png)
 
+            --
+
+            Now we are good!
+
+            ![](./images/extincteur.gif)
 
           </textarea>
         </section>
 
         <!-- What we learned from that journey -->
+        <section data-markdown data-background-image='images/chill.gif'>
+          # 5. Lesssons learned
+        </section>
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
@@ -637,6 +654,8 @@
     // - https://revealjs.com/config/
     Reveal.initialize({
       hash: true,
+      slideNumber: "c/t",
+      controlsLayout: 'edges',
 
       // Learn about plugins: https://revealjs.com/plugins/
       plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
