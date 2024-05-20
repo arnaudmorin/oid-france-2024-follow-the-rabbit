@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="dist/reset.css">
     <link rel="stylesheet" href="dist/reveal.css">
     <link rel="stylesheet" href="dist/theme/black.css">
-    <link rel="stylesheet" href="dist/theme/custom.css">
 
     <!-- Theme used for syntax highlighted code -->
     <link rel="stylesheet" href="plugin/highlight/monokai.css">
@@ -145,6 +144,18 @@
             - consumer ID
             - RPC called
             - etc.
+
+            ```shell
+            # Publisher
+            2024-05-20 17:18:37.824 235838 INFO oslo_messaging._drivers.amqpdriver [-] [unique_id:f68f648121954a30897b836098675fa6] Calling RPC method report_state on exchange 'neutron' topic 'q-reports-plugin' - Expecting reply to msg 116cdbdf52334a00979224c4e99a706a in queue reply_host299939.9023.dev.cloud.ovh.net:neutron-ovh-vrack-agent:1
+
+            # Subscriber
+            2024-05-20 17:18:37.832 4581 INFO oslo.messaging._drivers.impl_rabbit [-] [unique_id:f68f648121954a30897b836098675fa6 req:req-086f6872-15d6-40f5-9262-902331f3c5ed] Acknowledge message from queue q-reports-plugin - Must reply to msg_id 116cdbdf52334a00979224c4e99a706a in queue reply_host299939.9023.dev.cloud.ovh.net:neutron-ovh-vrack-agent:1
+
+            # Publisher receive ack
+            2024-05-20 17:18:37.864 235838 INFO oslo.messaging._drivers.impl_rabbit [-] [unique_id:276845328c72417d8baef0e9988cbe02] Acknowledge message from queue reply_host299939.9023.dev.cloud.ovh.net:neutron-ovh-vrack-agent:1 - Received reply to msg 116cdbdf52334a00979224c4e99a706a
+            ...
+            ```
 
             --
 
