@@ -180,7 +180,7 @@
 
             ## Reproduce production workload
 
-            RabbitMQ perftest
+            RabbitMQ perftest is a good tool for that
 
             ```bash
              ❭ docker run -it --net=host --rm pivotalrabbitmq/perf-test:latest -H amqp://rabbit:xxx@10.69.212.68 \
@@ -222,10 +222,6 @@
             * Rolling update redeclare tons of queues
               * anormal CPU usage on rabbitmq servers
 
-            Note:
-
-            120k queues on GRA7: thanos query screenshot to illustrate
-
             --
 
             ## What we learned?
@@ -240,7 +236,7 @@
 
             ## What we learned?
 
-            - From perftest:
+            perftest:
               - rabbitmq does not like at all handling tons of internal events (connection, channel, queue create/delete, etc..)
               - it's designed to handle high msg/s
               - it's a message broker, not a queue/connection broker!
@@ -249,7 +245,7 @@
 
             ## What we learned?
 
-            - From grafana:
+            Grafana:
               - bottleneck on file descriptor usage
                 - a persistent queue use 1 fd stored on disk
           </textarea>
@@ -267,11 +263,11 @@
             ## Publish/Subcribe mechanism
 
             - Subscriber: oslo_messaging.RPCServer
-              - create and listen on "topic" queues
-              - process message
+              - create and listen on *topic* queues
+              - process rpc message
 
             - Publisher
-              - Send oslo.message to target(s) "topic" queue
+              - Send oslo.message to target(s) *topic* queue
 
             --
 
@@ -610,7 +606,7 @@
             From thousands
 
             ```
-            xyz\_fanout\_[rand]
+            xyz_fanout_[rand]
             ```
 
             to **only one**
@@ -670,7 +666,9 @@
 
             **How ?**
 
-            At RPCServer creation, we use oslo.messaging Target params
+            At RPCServer creation, idea is to declare and listen only on needed queues.
+
+            We are lucky: oslo.messaging Target have all informations needed !
 
             Using:
 
@@ -684,6 +682,35 @@
             ## Good results (GRA3)
 
             ![](./images/tounused.png)
+
+            --
+
+            ## Reduce agents TCP connections
+
+            Neutron declare a lot of distinct RPC Servers for same purpose:
+            - 5 connections for  resource cache (neutron-vo-Port-1.9, neutron-vo-SecurityGroup-1.6, ...)
+            - 2 connections for trunk extension (neutron-vo-SubPort-1.0 neutron-vo-Trunk-1.1)
+            - 3 connections for agent notifier (q-agent-notifier-tunnel-update q-agent-notifier-tunnel-delete q-agent-notifier-dvr-update)
+
+            --
+
+            **How ?**
+
+            At RPCServer creation, idea is to pass a list of topics instead just 1
+
+            On OVS agent conf:
+
+            ```
+            [agent]
+            rpc_multiplex_agent_notifier_topics = True
+            rpc_multiplex_resource_cache_topics = True
+            ```
+
+            --
+
+            ## Good results (GRA3)
+
+            ![](./images/tomultiplex.png)
 
             --
 
