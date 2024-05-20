@@ -274,12 +274,12 @@
             ## RPC server
 
             - RPCServer declaration:
-              - a oslo.messaging Target
+              - one oslo.messaging Target
               - a list of endpoint class with rpc methods
 
             ```python
             target = oslo_messaging.Target(
-              topic=topic_name,
+              topic=name,
               server=hostname,
               fanout=fanout
             )
@@ -295,9 +295,9 @@
 
             ## RPC server
 
-            - 1 RPCServer declare and listen on 3 queues:
+            - 1 RPC server declare and listen on 3 queues:
               - topic
-              - topic.host
+              - topic.server
               - topic_fanout_[rand]
 
             - 1 RPCServer = 1 tcp connection
@@ -306,22 +306,19 @@
 
             ## Publisher
 
-            - different oslo api methods:
+            - one rpc method (ex: report_state)
+            - one oslo.messaging Target
+            - one of those send methods:
               - call
                 - reply sent to a dedicated reply queue (reply_[rand])
-              - cast
+              - cast with fanout=False
               - cast with fanout=True
-
-            - 1 rpc method (ex: report_state)
 
             --
 
             ## Publisher: oslo.message
 
             ```yaml
-            [message]: <Message object at 0x7fb48cec0318 with details {'state': 'RECEIVED', 'content_type': 'application/json', 'delivery_tag': 15, 'body_length': 1629, 'properties': {}, 'delivery_info': {'exchange': 'neutron', 'routing_key': 'q-reports-plugin'}}>
-            [headers]: {}
-            [oslo.message]:
             method: report_state
             version: '1.2'
             args:
@@ -365,28 +362,6 @@
 
           </textarea>
         </section>
-
-
-
-    <!-- Journey to get a stable infra. -->
-    <!-- -->
-    <!--     Infra improvment -->
-    <!--         split rabbit-neutron / rabbit-* -->
-    <!--         scale problematic clusters to 5 node -->
-    <!--         Upgrade to 3.10+ -->
-    <!--             quorum queue recommended -->
-    <!--         put back partition strategy to pause-minority -->
-    <!-- -->
-    <!--     oslo messaging improvments -->
-    <!--         queue fixed naming to avoid queue churn -->
-    <!--         heartbeat in pthread fix -->
-    <!--         move from HA queue > Quorum queues -->
-    <!--             fix to autodelete broken quorum queues -->
-    <!--         replace 'fanout' queues by stream queues -->
-    <!--             reduce queue nb a lot -->
-    <!--             patch to avoid tcp reconnection when a queue is deleted (kombu/oslo) -->
-    <!--         reduce queues declared by a RPC server (3 queues by default to only 1) -->
-    <!--         use same connection for mutiple topics -->
 
 
         <!-- Solutions -->
@@ -609,7 +584,7 @@
             xyz_fanout_[rand]
             ```
 
-            to **only one**
+            to **only one**, shared by consumers
 
             ```
             xyz_fanout
@@ -636,10 +611,6 @@
 
             ![](./images/tostream.png)
 
-
-            Note:
-            Reduce the number of queues, from 128k to 70k
-
             --
 
             Better, but not enough
@@ -648,19 +619,21 @@
 
             --
 
-            ## Stop creating unused queues
+            ## OVS agent: unused queues ?
 
             Neutron creates a lot of queues, while it seems they are not used!
 
-            Can we delete them / stop creating them ?
+            Can we delete them / avoid creating them ?
 
             --
 
-            ## Stop creating unused queues
+            ## OVS agent: Stop creating unused queues
 
-            1 RPCServer = 3 queues (topic, topic.host, topic_fanout)
+            1 RPCServer = 3 queues (topic, topic.server, topic_fanout)
 
             But most of the time, only one of those is used.
+              - Most of the time, only *topic_fanout* is used
+                 ➜ Good news, it's now shared queues (stream)
 
             --
 
@@ -685,12 +658,12 @@
 
             --
 
-            ## Reduce agents TCP connections
+            ## Reduce OVS agents TCP connections
 
             Neutron declare a lot of distinct RPC Servers for same purpose:
-            - 5 connections for  resource cache (neutron-vo-Port-1.9, neutron-vo-SecurityGroup-1.6, ...)
+            - 5 connections for resource cache (neutron-vo-Port-1.9, neutron-vo-SecurityGroup-1.6, ...)
             - 2 connections for trunk extension (neutron-vo-SubPort-1.0 neutron-vo-Trunk-1.1)
-            - 3 connections for agent notifier (q-agent-notifier-tunnel-update q-agent-notifier-tunnel-delete q-agent-notifier-dvr-update)
+            - 3 connections for agent notifier (q-agent-notifier-tunnel-update, tunnel-delete, dvr-update)
 
             --
 
@@ -723,18 +696,24 @@
 
         <!-- What we learned from that journey -->
         <section data-markdown data-background-image='images/chill.gif'>
-          # 5. Lesssons learned
+          # 5. Lessons learned
         </section>
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
             ### Lessons learned
-            TODO
+            - Stay up to date with RabbitMQ
+              - help being more stable
+            - Follow RabbitMQ implementation recomendations
+              - We spent long time to tweak RabbitMQ,
+                but most of our issues were related to messaging implementation
+              - community is helpful (ml, discord)
           </textarea>
         </section>
 
-
+        <section data-markdown data-background-image='images/questions.gif' data-background-size="contain">
+        </section>
 
       </div>
     </div>
