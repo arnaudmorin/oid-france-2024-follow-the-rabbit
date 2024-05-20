@@ -59,7 +59,7 @@
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
             ## Cluster unresponsive
-            
+
             RabbitMQ server and/or cluster is unresponsive
             - stuck rabbitmqctl / api
             - a lot of error in rabbitmq logs
@@ -258,27 +258,72 @@
           <textarea data-template>
             ## Pub/Sub mechanism
 
-            Note:
-            Schema:
-            publish to an exchange with a routing key
-            routed to 1 or N queue
+            - Subscriber: oslo_messaging.RPCServer
+              - create and listen on queues
 
-            1 queue => 1 consumer (except for stream, we'll see that later)
+            - Publisher
+              - Send oslo.message to target(s) topic
 
             --
 
             ## RPC server
 
-            - RPCServer() initialisation
+            - RPCServer declaration:
               - a topic name
-              - 1 or more endpoint class with rpc methods
+              - a list of endpoint class with rpc methods
 
-            Note:
-            1 rpcserver = 1 tcp connection
-            listening on 3 queues
-              topic
-              topic.hostname
-              topic_fanout
+            - 1 RPCServer declare and listen on 3 queues:
+              - topic
+              - topic.host
+              - topic_fanout_[rand]
+
+            - 1 RPCServer = 1 tcp connection
+
+            --
+
+            ## Publisher
+
+            - different api methods:
+              - rpc call
+                - reply queue (transient queue)
+              - rpc cast
+              - rpc cast with fanout=True
+
+            - 1 rpc method (ex: report_state)
+
+            --
+
+            ## Publisher: oslo.message
+
+            ```yaml
+            [message]: <Message object at 0x7fb48cec0318 with details {'state': 'RECEIVED', 'content_type': 'application/json', 'delivery_tag': 15, 'body_length': 1629, 'properties': {}, 'delivery_info': {'exchange': 'neutron', 'routing_key': 'q-reports-plugin'}}>
+            [headers]: {}
+            [oslo.message]:
+            method: report_state
+            version: '1.2'
+            args:
+              agent_state:
+                agent_state:
+                  agent_type: DHCP agent
+                  availability_zone: nova
+                  binary: neutron-dhcp-agent
+                  configurations: {dhcp_driver: neutron.agent.linux.dhcp.Dnsmasq, dhcp_lease_duration: 86400,
+                    log_agent_heartbeats: false, networks: 1, ports: 5, subnets: 1}
+                  host: snat306422.9023.dev.cloud.ovh.net
+                  topic: dhcp_agent
+                  uuid: c1505bd8-da04-49ab-86a4-42f37142a7cb
+              time: '2024-05-20T12:06:06.504363'
+
+            _context_XXX: ...
+            _msg_id: c2fee6ad20a84cb38aec390089b43856
+            _reply_q: reply_snat306422.9023.dev.cloud.ovh.net:neutron-dhcp-agent:1
+            _timeout: null
+            _unique_id: d4b6abcd263d4596b9a6f851145dd99e
+            ```
+
+            --
+
+            ![](./images/schemes/oslo_messaging.png)
 
             --
 
@@ -294,21 +339,6 @@
               * reply\_[rand]
               * \*\_fanout\_[rand]
 
-            --
-
-            ## Publisher
-
-            - methods:
-              - call
-                - reply queue (transient queue)
-              - cast
-              - cast fanout=True
-
-            - Ex of a rpc call:
-
-            ```bash
-            here
-            ```
 
           </textarea>
         </section>
@@ -429,7 +459,7 @@
             ![](./images/dog-burning.gif)
 
             --
-            
+
             ## Support a node loss
 
             * Recommended policy is not HA for all queues
