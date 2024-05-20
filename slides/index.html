@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="dist/reset.css">
     <link rel="stylesheet" href="dist/reveal.css">
     <link rel="stylesheet" href="dist/theme/black.css">
+    <link rel="stylesheet" href="dist/theme/custom.css">
 
     <!-- Theme used for syntax highlighted code -->
     <link rel="stylesheet" href="plugin/highlight/monokai.css">
@@ -17,11 +18,7 @@
     <div class="reveal">
       <div class="slides">
 
-        <section data-markdown data-background-color='#000e9f'>
-            # Follow the rabbit
-            ![OVH](images/ovhcloud2.png)
-            #### Julien Cosmao - Arnaud Morin
-            #### OpenInfra Day France - 2024
+        <section data-background-image='images/cover.png'>
         </section>
 
         <!-- Intro -->
@@ -249,28 +246,47 @@
 
 
         <!-- Under the hood -->
-        <section data-markdown data-background-image='images/tomber.gif'>
+        <section data-markdown data-background-image='images/tomber.gif'  data-background-fit="cover">
           # 3. Under the hood: oslo.messaging
         </section>
         <section data-markdown
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ## Pub/Sub mechanism
+            ## Publish/Subcribe mechanism
 
             - Subscriber: oslo_messaging.RPCServer
-              - create and listen on queues
+              - create and listen on "topic" queues
+              - process message
 
             - Publisher
-              - Send oslo.message to target(s) topic
+              - Send oslo.message to target(s) "topic" queue
 
             --
 
             ## RPC server
 
             - RPCServer declaration:
-              - a topic name
+              - a oslo.messaging Target
               - a list of endpoint class with rpc methods
+
+            ```python
+            target = oslo_messaging.Target(
+              topic=topic_name,
+              server=hostname,
+              fanout=fanout
+            )
+            endpoints = [RPCMethods()]
+
+            return oslo_messaging.get_rpc_server(
+              TRANSPORT, target, endpoints,
+              ...
+            )
+            ```
+
+            --
+
+            ## RPC server
 
             - 1 RPCServer declare and listen on 3 queues:
               - topic
@@ -283,11 +299,11 @@
 
             ## Publisher
 
-            - different api methods:
-              - rpc call
-                - reply queue (transient queue)
-              - rpc cast
-              - rpc cast with fanout=True
+            - different oslo api methods:
+              - call
+                - reply sent to a dedicated reply queue (reply_[rand])
+              - cast
+              - cast with fanout=True
 
             - 1 rpc method (ex: report_state)
 
@@ -367,7 +383,7 @@
 
 
         <!-- Solutions -->
-        <section data-markdown data-background-image='images/matrixlapin.jpeg'>
+        <section data-markdown data-background-image='images/matrixlapin.jpeg' data-background-size="cover">
           # 4. Follow the *right* rabbit
         </section>
         <section data-markdown
@@ -447,7 +463,7 @@
 
             ## Bad results
 
-            Too much messages sent over RabbitMQ wires (x10)
+            Too many messages sent over RabbitMQ wires (x10)
 
             Not as reliable as expected:
             * each RPC server run in a separate thread
@@ -560,12 +576,12 @@
 
             --
 
-            ## Too much queue issue
+            ## Too many queues issue
 
-            Too much queues on RabbitMQ
+            Too many queues on RabbitMQ
 
             **Side effect**:
-            * Queue leader re-election is costly
+            * Queue leader re-election is expensive
               * Can kill the cluster
 
             --
@@ -603,7 +619,6 @@
             In rabbitmq, each consumer declare it's own queue.
             with stream, same queue can be shared with N consumers.
 
-
             --
 
             ![](./images/schemes/oslo_messaging_stream.png)
@@ -630,20 +645,28 @@
 
             Neutron creates a lot of queues, while it seems they are not used!
 
-            Can we delete them / stop creating them?
+            Can we delete them / stop creating them ?
 
             --
 
-            ## Cleanup up neutron / oslo.messaging code
+            ## Stop creating unused queues
 
-            TODO
-            Each RPC server declare 3 queues (like we explained before)
+            1 RPCServer = 3 queues (topic, topic.host, topic_fanout)
 
-            status: not submitted yet upstream
+            But most of the time, only one of those is used.
 
-            Note:
+            --
 
-            Neutron still has too many queues
+            **How ?**
+
+            At RPCServer creation, we use oslo.messaging Target params
+
+            Using:
+
+            ```shell
+            [oslo.messaging]
+            rabbit_declare_all_consumers = False
+            ```
 
             --
 
