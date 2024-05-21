@@ -147,13 +147,16 @@
 
             ```shell
             # Publisher
-            2024-05-20 17:18:37.824 235838 INFO oslo_messaging._drivers.amqpdriver [-] [unique_id:f68f648121954a30897b836098675fa6] Calling RPC method report_state on exchange 'neutron' topic 'q-reports-plugin' - Expecting reply to msg 116cdbdf52334a00979224c4e99a706a in queue reply_host299939.9023.dev.cloud.ovh.net:neutron-ovh-vrack-agent:1
+            2024-05-20 17:18:37.824 235838 INFO oslo_messaging._drivers.amqpdriver [-] [unique_id:f68f648121954a30897b836098675fa6]
+            Calling RPC method report_state on exchange 'neutron' topic 'q-reports-plugin' - Expecting reply to msg 116cdbdf52334a00979224c4e99a706a in queue reply_host299939.9023.dev.cloud.ovh.net:neutron-ovh-vrack-agent:1
 
             # Subscriber
-            2024-05-20 17:18:37.832 4581 INFO oslo.messaging._drivers.impl_rabbit [-] [unique_id:f68f648121954a30897b836098675fa6 req:req-086f6872-15d6-40f5-9262-902331f3c5ed] Acknowledge message from queue q-reports-plugin - Must reply to msg_id 116cdbdf52334a00979224c4e99a706a in queue reply_host299939.9023.dev.cloud.ovh.net:neutron-ovh-vrack-agent:1
+            2024-05-20 17:18:37.832 4581 INFO oslo.messaging._drivers.impl_rabbit [-] [unique_id:f68f648121954a30897b836098675fa6 req:req-086f6872-15d6-40f5-9262-902331f3c5ed]
+            Acknowledge message from queue q-reports-plugin - Must reply to msg_id 116cdbdf52334a00979224c4e99a706a in queue reply_host299939.9023.dev.cloud.ovh.net:neutron-ovh-vrack-agent:1
 
             # Publisher receive ack
-            2024-05-20 17:18:37.864 235838 INFO oslo.messaging._drivers.impl_rabbit [-] [unique_id:276845328c72417d8baef0e9988cbe02] Acknowledge message from queue reply_host299939.9023.dev.cloud.ovh.net:neutron-ovh-vrack-agent:1 - Received reply to msg 116cdbdf52334a00979224c4e99a706a
+            2024-05-20 17:18:37.864 235838 INFO oslo.messaging._drivers.impl_rabbit [-] [unique_id:276845328c72417d8baef0e9988cbe02]
+            Acknowledge message from queue reply_host299939.9023.dev.cloud.ovh.net:neutron-ovh-vrack-agent:1 - Received reply to msg 116cdbdf52334a00979224c4e99a706a
             ...
             ```
 
@@ -211,13 +214,14 @@
             Neutron is the bad guy
 
             * Each compute is having at least 4 neutron agents (bgp, vrack, l3, metadata, [dhcp])
-              * 1 agent = 14 tcp connections on rabbit
-              * 1 agent = at least N queues
+              * 1 OVS agent = ~14 tcp connections on rabbit
+              * 1 OVS agent = +30 queues
                 * Most of them are *transient* queues
 
             --
 
             ## What we learned?
+
             * Neutron create a lot of queues and connections!
             * Rolling update redeclare tons of queues
               * anormal CPU usage on rabbitmq servers
@@ -236,7 +240,7 @@
 
             ## What we learned?
 
-            perftest:
+            - Perftest
               - rabbitmq does not like at all handling tons of internal events (connection, channel, queue create/delete, etc..)
               - it's designed to handle high msg/s
               - it's a message broker, not a queue/connection broker!
@@ -245,9 +249,11 @@
 
             ## What we learned?
 
-            Grafana:
+            - Prom exporter
               - bottleneck on file descriptor usage
-                - a persistent queue use 1 fd stored on disk
+
+            ➜ a persistent queue consume 1 fd
+
           </textarea>
         </section>
 
@@ -262,12 +268,12 @@
           <textarea data-template>
             ## Publish/Subcribe mechanism
 
-            - Subscriber: oslo_messaging.RPCServer
-              - create and listen on *topic* queues
-              - process rpc message
+            - Subscriber/Consumer: oslo_messaging.RPCServer
+              - create and listen on *topic*
+              - process rpc message and publish response if required
 
             - Publisher
-              - Send oslo.message to target(s) *topic* queue
+              - Send oslo.message to target(s) *topic*
 
             --
 
@@ -277,7 +283,7 @@
               - one oslo.messaging Target
               - a list of endpoint class with rpc methods
 
-            ```python
+            ```py
             target = oslo_messaging.Target(
               topic=name,
               server=hostname,
@@ -285,10 +291,11 @@
             )
             endpoints = [RPCMethods()]
 
-            return oslo_messaging.get_rpc_server(
+            server = oslo_messaging.get_rpc_server(
               TRANSPORT, target, endpoints,
               ...
             )
+            server.start()
             ```
 
             --
@@ -316,7 +323,7 @@
 
             --
 
-            ## Publisher: oslo.message
+            ## Publisher: oslo.message ?
 
             ```yaml
             method: report_state
@@ -336,7 +343,7 @@
 
             _context_XXX: ...
             _msg_id: c2fee6ad20a84cb38aec390089b43856
-            _reply_q: reply_snat306422.9023.dev.cloud.ovh.net:neutron-dhcp-agent:1
+            _reply_q: reply_a098743aef84321bdcaa15851145542
             _timeout: null
             _unique_id: d4b6abcd263d4596b9a6f851145dd99e
             ```
@@ -358,7 +365,6 @@
             * No HA on *transient* queues:
               * reply\_[rand]
               * \*\_fanout\_[rand]
-
 
           </textarea>
         </section>
