@@ -138,15 +138,7 @@
 
             *that sounds obvious*
 
-            --
-
-            ## Add some useful logs
-
             Add some logs with:
-            - message ID
-            - consumer ID
-            - RPC called
-            - etc.
 
             ```shell
             # Publisher
@@ -184,24 +176,6 @@
 
             --
 
-            ## Reproduce production workload
-
-            RabbitMQ perftest is a good tool for that
-
-            ```bash
-             ❭ docker run -it --net=host --rm pivotalrabbitmq/perf-test:latest -H amqp://rabbit:xxx@10.69.212.68 \
-                  --size 5000 --json-body \
-                  --publishing-interval 5 \
-                  --consumers 1000 \
-                  --producers 3000 \
-                  -f persistent \
-                  -queue-pattern "ha_queue_%s" \
-                  --queue-pattern-from 1 \
-                  --queue-pattern-to 30000
-            ```
-
-            --
-
             ## What we learned?
 
             Neutron is the bad guy
@@ -219,14 +193,6 @@
 
             ## What we learned?
 
-            * Neutron create a lot of queues and connections!
-            * Rolling update redeclare tons of queues
-              * anormal CPU usage on rabbitmq servers
-
-            --
-
-            ## What we learned?
-
             Nova is not as bad as neutron
 
             * Only one agent (nova-compute)
@@ -237,10 +203,23 @@
 
             ## What we learned?
 
-            - Perftest
+            RabbitMQ perftest is a good tool to reproduce workload
+
               - rabbitmq does not like at all handling tons of internal events (connection, channel, queue create/delete, etc..)
               - it's designed to handle high msg/s
               - it's a message broker, not a queue/connection broker!
+
+            ```bash
+             ❭ docker run -it --net=host --rm pivotalrabbitmq/perf-test:latest -H amqp://rabbit:xxx@10.69.212.68 \
+                  --size 5000 --json-body \
+                  --publishing-interval 5 \
+                  --consumers 1000 \
+                  --producers 3000 \
+                  -f persistent \
+                  -queue-pattern "ha_queue_%s" \
+                  --queue-pattern-from 1 \
+                  --queue-pattern-to 30000
+            ```
 
           </textarea>
         </section>
@@ -254,40 +233,6 @@
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ## Publish/Subcribe mechanism
-
-            - Subscriber/Consumer: oslo_messaging.RPCServer
-              - create and listen on *topic*
-              - process rpc message and publish response if required
-
-            - Publisher
-              - Send oslo.message to target(s) *topic*
-
-            --
-
-            ## RPC server
-
-            - RPCServer declaration:
-              - one oslo.messaging Target
-              - a list of endpoint class with rpc methods
-
-            ```py
-            target = oslo_messaging.Target(
-              topic=name,
-              server=hostname,
-              fanout=fanout
-            )
-            endpoints = [RPCMethods()]
-
-            server = oslo_messaging.get_rpc_server(
-              TRANSPORT, target, endpoints,
-              ...
-            )
-            server.start()
-            ```
-
-            --
-
             ## RPC server
 
             - 1 RPC server declare and listen on 3 queues:
@@ -335,10 +280,6 @@
             _timeout: null
             _unique_id: d4b6abcd263d4596b9a6f851145dd99e
             ```
-
-            --
-
-            ![](./images/schemes/oslo_messaging.png)
 
           </textarea>
         </section>
