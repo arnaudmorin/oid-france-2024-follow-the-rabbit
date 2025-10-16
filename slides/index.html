@@ -306,22 +306,7 @@
 
             Let's fix it anyway
 
-            --
-
-            ## Switch apache mpm
-
-            worker ➜ event
-
-            --
-
-            Better, but not enough
-
-            ![](./images/dog-burning.gif)
-
-            --
-
-            ## Avoid missed heartbeats on compute nodes
-
+            * Switch apache mpm: worker ➜ event
             * fixed green threads (some fix were already done by RedHat)
             * fixed pyamqp (timeout not respected)
 
@@ -333,25 +318,12 @@
 
             --
 
-            ## Support a node loss
-
-            * Recommended policy is not HA for all queues
-              * node loss ➜ queues loss ➜ messages loss
-            * Classic HA are deprecated
-
-            --
-
             ## Introducing quorum queues
 
-            * Quorum are replacing classic HA
-            * RabbitMQ community recommands quorum (removed in rabbitmq 4)
+            * Quorum are replacing classic HA (removed in rabbitmq 4)
 
             * oslo.messaging partial support
               * missing support for *transient* queues
-
-            --
-
-            ## Configuring quorum queues
 
             ```shell
             [oslo.messaging]
@@ -381,10 +353,6 @@
             * more network
             * more RAM
 
-            --
-
-            ## Very bad results
-
             Queue churn is killing servers/cluster
 
             * Rabbit unresponsive / slow
@@ -399,9 +367,6 @@
             * reply\_[rand]
             * \*\_fanout\_[rand]
 
-            --
-
-            ## Introducing queue manager
             ```shell
             [oslo.messaging]
             use_queue_manager = True
@@ -433,17 +398,11 @@
 
             --
 
-            ## Too many queues issue
-
-            Too many queues on RabbitMQ
-
-            **Side effect**:
-            * Queue leader re-election is expensive
-              * Can kill the cluster
-
-            --
-
             ## Introducing stream queues
+
+            Still too many queues
+
+            Most of them are Fanouts
 
             As RabbitMQ doc says:
 
