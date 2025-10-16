@@ -206,15 +206,9 @@
 
             Neutron is the bad guy
 
-            - From oslo.metrics: most of messages in neutron are sent in fanouts
-              - 1 message published ➜ replicated to N queues
-              - neutron-server flood resources update to agents (agent notifier api, resource cache)
-
-            --
-
-            ## What we learned?
-
-            Neutron is the bad guy
+            * From oslo.metrics: most of messages in neutron are sent in fanouts
+              * 1 message published ➜ replicated to N queues
+              * neutron-server flood resources update to agents (agent notifier api, resource cache)
 
             * Each compute is having at least 4 neutron agents (bgp, vrack, l3, metadata, [dhcp])
               * 1 OVS agent = ~14 tcp connections on rabbit
@@ -247,15 +241,6 @@
               - rabbitmq does not like at all handling tons of internal events (connection, channel, queue create/delete, etc..)
               - it's designed to handle high msg/s
               - it's a message broker, not a queue/connection broker!
-
-            --
-
-            ## What we learned?
-
-            - Prom exporter
-              - bottleneck on file descriptor usage
-
-            ➜ a persistent queue consume 1 fd
 
           </textarea>
         </section>
@@ -355,20 +340,6 @@
 
             ![](./images/schemes/oslo_messaging.png)
 
-            --
-
-            ## Policy and queues
-
-            Recommended HA policy:
-
-            ```bash
-            `^(?!(amq\.)|(.*_fanout_)|(reply_)).*`
-            ```
-
-            * No HA on *transient* queues:
-              * reply\_[rand]
-              * \*\_fanout\_[rand]
-
           </textarea>
         </section>
 
@@ -383,7 +354,7 @@
           <textarea data-template>
             ## RabbitMQ upgrade
 
-            3.8 ➜ 3.12
+            3.8 ➜ 3.12 ➜ 4.1
 
             --
 
@@ -429,44 +400,6 @@
 
             --
 
-            ## Introducing RPC pinger
-
-            A new endpoint to help operators monitoring agents liveness
-
-            --
-
-            ## Configuring RPC pinger
-
-            ```shell
-            [oslo.messaging]
-            rpc_ping_enabled = True
-            ```
-
-            \+ a tool that actually send call RPC ping on all agents every 5 minutes (ovh-rpc-pinger)
-
-            --
-
-            ## Good results
-
-            Very precise monitoring of which neutron / nova agent is dead or not
-
-            --
-
-            ## Bad results
-
-            Too many messages sent over RabbitMQ wires (x10)
-
-            Not as reliable as expected:
-            * each RPC server run in a separate thread
-
-            --
-
-            Better, but not enough
-
-            ![](./images/dog-burning.gif)
-
-            --
-
             ## Support a node loss
 
             * Recommended policy is not HA for all queues
@@ -478,7 +411,7 @@
             ## Introducing quorum queues
 
             * Quorum are replacing classic HA
-            * RabbitMQ community recommands quorum
+            * RabbitMQ community recommands quorum (removed in rabbitmq 4)
 
             * oslo.messaging partial support
               * missing support for *transient* queues
@@ -624,84 +557,20 @@
 
             --
 
-            Better, but not enough
-
-            ![](./images/dog-burning.gif)
-
-            --
-
-            ## OVS agent: unused queues ?
-
-            Neutron creates a lot of queues, while it seems they are not used!
-
-            Can we delete them / avoid creating them ?
-
-            --
-
-            ## OVS agent: Stop creating unused queues
-
-            1 RPCServer = 3 queues (topic, topic.server, topic_fanout)
-
-            But most of the time, only one of those is used.
-              - Most of the time, only *topic_fanout* is used
-
-               ➜ Good news, it's now shared queues (stream)
-
-            --
-
-            **How ?**
-
-            At RPCServer creation, idea is to declare and listen only on needed queues.
-
-            We are lucky: oslo.messaging Target have all informations needed !
-
-            Using:
-
-            ```shell
-            [oslo.messaging]
-            rabbit_declare_all_consumers = False
-            ```
-
-            --
-
-            ## Good results (GRA3)
-
-            ![](./images/tounused.png)
-
-            --
-
-            ## Reduce OVS agents TCP connections
-
-            Neutron declare a lot of distinct RPC Servers for same purpose:
-            - 5 connections for resource cache (neutron-vo-Port-1.9, neutron-vo-SecurityGroup-1.6, ...)
-            - 2 connections for trunk extension (neutron-vo-SubPort-1.0 neutron-vo-Trunk-1.1)
-            - 3 connections for agent notifier (q-agent-notifier-tunnel-update, tunnel-delete, dvr-update)
-
-            --
-
-            **How ?**
-
-            At RPCServer creation, idea is to pass a list of topics instead just 1
-
-            On OVS agent conf:
-
-            ```
-            [agent]
-            rpc_multiplex_agent_notifier_topics = True
-            rpc_multiplex_resource_cache_topics = True
-            ```
-
-            --
-
-            ## Good results (GRA3)
-
-            ![](./images/tomultiplex.png)
-
-            --
-
             Now we are good!
 
             ![](./images/extincteur.gif)
+
+            --
+
+            ## Going further
+
+            * reduce nb queues created by neutron-ovs-agent
+              * a lot of queues are unused (3 queues declared per RPC server)
+
+            * reduce nb connections created by neutron-ovs-agent
+              * each RPC server have a dedicated connection (~10 per agent)
+              * reuse same connection for multiple RPC server (e.g. ressource cache)
 
           </textarea>
         </section>
