@@ -102,7 +102,7 @@
 
             Most of our region are bigger than 1k computes nodes
 
-            Some regions have more than 2k computes nodes.
+            Some regions have more than 2500 computes nodes.
 
             ➜ We know that at large scale, it's not easy...
 
@@ -238,6 +238,21 @@
               - topic_fanout_[rand]
 
             - 1 RPCServer = 1 tcp connection
+
+            ```python
+            target = oslo_messaging.Target(
+              topic=name,
+              server=hostname,
+              fanout=fanout
+            )
+            endpoints = [RPCMethods()]
+
+            server = oslo_messaging.get_rpc_server(
+              TRANSPORT, target, endpoints,
+              ...
+            )
+            server.start()
+            ```
 
             --
 
@@ -466,7 +481,7 @@
               * a lot of queues are unused (3 queues declared per RPC server)
 
             * reduce nb connections created by neutron-ovs-agent
-              * each RPC server have a dedicated connection (~10 per agent)
+              * each RPC server have a dedicated connection
               * reuse same connection for multiple RPC server (e.g. ressource cache)
 
           </textarea>
