@@ -47,12 +47,18 @@
           data-separator="^\n---\n$"
           data-separator-vertical="^\n--\n$">
           <textarea data-template>
-            ## Cluster unresponsive
+            ## oslo.messaging RPC timeout
 
-            RabbitMQ server and/or cluster is unresponsive
-            - stuck rabbitmqctl / api
-            - a lot of error in rabbitmq logs
-            - no more data from prom exporter
+            A lot of oslo.messaging RPC timeout in all openstack component logs
+
+            ```bash
+            MessagingTimeout: Timeout while waiting on RPC response...
+            ```
+
+            ```shell
+            [DEFAULT]
+            rpc_response_timeout = 120
+            ```
 
             --
 
@@ -64,19 +70,18 @@
 
             --
 
-            ## oslo.messaging RPC timeout
-
-            A lot of oslo.messaging RPC timeout in all openstack component logs
-
-            ```bash
-            MessagingTimeout: Timeout while waiting on RPC response...
-            ```
-
-            --
-
             ## Network partition
 
             RabbitMQ cluster partition without any visible reason
+
+            --
+
+            ## Cluster unresponsive
+
+            RabbitMQ server and/or cluster is unresponsive
+            - stuck rabbitmqctl / api
+            - a lot of error in rabbitmq logs
+            - no more data from prom exporter
 
             --
 
