@@ -457,6 +457,11 @@
             rabbit_stream_fanout = True
             ```
 
+            policy:
+            ```
+            stream-policy   .*_fanout.*     streams {"max-length-bytes":15000000,"stream-max-segment-size-bytes":5000000}
+            ```
+
             Note:
             In rabbitmq, each consumer declare it's own queue.
             with stream, same queue can be shared with N consumers.
